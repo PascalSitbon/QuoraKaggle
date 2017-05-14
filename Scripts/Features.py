@@ -1,18 +1,9 @@
-import sklearn
-from sklearn import preprocessing
-from sklearn.cross_validation import train_test_split
-from sklearn.metrics import f1_score
-from sklearn.ensemble import RandomForestClassifier
 import gensim
 import numpy as np
 import timeit
-import nltk
 import pandas as pd
 from nltk.stem import *
 from nltk import word_tokenize, ngrams
-import logging
-import sys
-import pdb
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
