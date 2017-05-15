@@ -8,6 +8,72 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 
+#Ideas on features based on word2vec:
+
+#remove duplicates in questions and calculate the max/min (max can be took without removing duplicate words
+#distance between word2vec representation of words. sounds like a good plan
+
+#L2 norm/similarity between centroids of sentences.
+
+#
+
+def preprocess(sentences_train):
+    sentences = []
+    stemmer = PorterStemmer()
+    for i in range(sentences_train.shape[0]):
+        source_sentence = sentences_train[i,0].lower().split(" ")
+        source_sentence = [token for token in source_sentence if token not in stpwds]
+        unigrams_que1 = [stemmer.stem(token) for token in source_sentence]
+        sentences.append(unigrams_que1)
+
+        target_sentence = sentences_train[i,1].lower().split(" ")
+        target_sentence= [token for token in target_sentence if token not in stpwds]
+        unigrams_que2 = [stemmer.stem(token) for token in target_sentence]
+        sentences.append(unigrams_que2)
+    return sentences
+
+
+def word2vec_features(model, sentences: np.array):
+    'sentences :  [[token1,...,tokend],..,[token1,...,tokend]]'
+    'model : Trained Word 2 Vec model'
+
+    max_distance_tokens = []
+    min_distance_tokens_duplic_removed = []
+    centroid_distances = []
+
+    for i in range(int(len(sentences) / 2)):
+
+        set1 = set(sentences[2 * i])
+        set2 = set(sentences[2 * i + 1])
+        sym_dif = set1.symmetric_difference(set2)
+        d_min = 100
+        d_max = 0
+        for token1 in set1 & sym_dif:
+            for token2 in set2 & sym_dif:
+                distance_tokens = np.linalg.norm(model[token1] - model[token2])
+                if distance_tokens <= d_min:
+                    d_min = distance_tokens
+                if distance_tokens >= d_max:
+                    d_max = distance_tokens
+
+        if min(len(set1), len(set2)) > 0:
+            centroid1 = np.sum([model[token1] for token1 in set1], axis=0) / len(set1)
+            centroid2 = np.sum([model[token2] for token2 in set2], axis=0) / len(set2)
+            distance_centroid = np.linalg.norm(centroid1 - centroid2)
+        else:
+            distance_centroid = 100
+
+        max_distance_tokens.append(d_max)
+        min_distance_tokens_duplic_removed.append(d_min)
+        centroid_distances.append(distance_centroid)
+
+    word2vec_features = np.array([centroid_distances,
+                                  min_distance_tokens_duplic_removed,
+                                  max_distance_tokens]).T
+
+    return word2vec_features
+
+
 def doc2vecs_features(sentences_train,stpwds,model_name = None ,nb_epochs=100, alpha=0.025, min_alpha=0.025):
     sentences = []
     stemmer = PorterStemmer()
@@ -55,8 +121,10 @@ def doc2vecs_features(sentences_train,stpwds,model_name = None ,nb_epochs=100, a
 
         most_similar_score_if_duo_1_2.append(int(most_sim_1[0] == "SENT_" + str(2 * i + 1)) * most_sim_1[1])
         most_similar_score_if_duo_2_1.append(int(most_sim_2[0] == "SENT_" + str(2 * i)) * most_sim_2[1])
-
-        n_similarities.append(model.n_similarity(sentences[2 * i], sentences[2 * i + 1]))
+        if len(sentences[2 * i]) !=0 and len(sentences[2*i+ 1] )!=0:
+            n_similarities.append(model.n_similarity(sentences[2 * i], sentences[2 * i + 1]))
+        else:
+            n_similarities.append(0)
 
         doc_2_vec_features = np.array([n_similarities,
                                        most_similar_score_if_duo_1_2,

@@ -9,7 +9,7 @@ import pandas as pd
 from nltk.stem import *
 import logging
 import sys
-from Features.py import doc2vecs_features,n_grams_features,freq_hash
+from Quora.QuoraKaggle.Scripts.Features import doc2vecs_features,n_grams_features,freq_hash, preprocess, word2vec_features
 import pdb
 
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -30,9 +30,15 @@ if len(sys.argv)==1:
 else:
     size_train = int(sys.argv[1])
 
-#Doc2Vec Features
-print('calculating doc2vec features')
-doc_2_vec_features_train = doc2vecs_features(sentences_train[:size_train,:],stpwds,model_name=model_name)
+
+#word2vec
+print('calculating word2vec features')
+sentences = preprocess(sentences_train[:size_train,:])
+word2vec_features_ = word2vec_features(sentences)
+#
+# #Doc2Vec Features
+# print('calculating doc2vec features')
+# doc_2_vec_features_train = doc2vecs_features(sentences_train[:size_train,:],stpwds,model_name=model_name)
 
 #frequency and hash Features
 print('calucalting hash and freq features')
@@ -48,7 +54,7 @@ n_grams_features = n_grams_features(sentences_train[:size_train,:],stpwds)
 
 
 pdb.set_trace()
-X = np.column_stack([train_comb_features_train,n_grams_features,doc_2_vec_features_train])
+X = np.column_stack([train_comb_features_train,n_grams_features,word2vec_features_])
 X = preprocessing.scale(X)
 y = labels[:size_train].astype(float)
 X_train, X_test, y_train, y_test = train_test_split(X, y,
