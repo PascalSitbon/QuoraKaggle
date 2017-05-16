@@ -17,7 +17,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 #
 
-def preprocess(sentences_train):
+def preprocess(sentences_train,stpwds):
     sentences = []
     stemmer = PorterStemmer()
     for i in range(sentences_train.shape[0]):
@@ -33,43 +33,67 @@ def preprocess(sentences_train):
     return sentences
 
 
-def word2vec_features(model, sentences: np.array):
+def word2vec_features(model, sentences):
     'sentences :  [[token1,...,tokend],..,[token1,...,tokend]]'
     'model : Trained Word 2 Vec model'
 
     max_distance_tokens = []
     min_distance_tokens_duplic_removed = []
+    min_distances = []
     centroid_distances = []
 
     for i in range(int(len(sentences) / 2)):
+        if i % 1000 == 0:
+            print(i)
+        d_min_classic = 1
+        d_min = 1
+        d_max = -1
+        distance_centroid = -1
 
         set1 = set(sentences[2 * i])
         set2 = set(sentences[2 * i + 1])
+
         sym_dif = set1.symmetric_difference(set2)
-        d_min = 100
-        d_max = 0
-        for token1 in set1 & sym_dif:
-            for token2 in set2 & sym_dif:
-                distance_tokens = np.linalg.norm(model[token1] - model[token2])
-                if distance_tokens <= d_min:
-                    d_min = distance_tokens
-                if distance_tokens >= d_max:
-                    d_max = distance_tokens
+
+        # in the else condition we assume set1 and set2 non empty
+        if len(set1) > 0 and len(set2) > 0:
+            for token1 in set1:
+                for token2 in set2:
+                    distance_ = cosine_similarity(model[token1].reshape(1, -1), model[token2].reshape(1, -1))[0, 0]
+                    if distance_ <= d_min_classic:
+                        d_min_classic = distance_
+
+                        # following condition is same with adding len(set2)>0
+            # means set1==set2 and non empty sets
+            if len(sym_dif) == 0:
+                d_min = 1
+                d_max = 1
+            else:
+                if set1.issubset(set2) or set2.issubset(set1):
+                    d_min = -1
+                    d_max = -1
+                else:
+                    for token1 in set1 & sym_dif:
+                        for token2 in set2 & sym_dif:
+                            distance_tokens = \
+                            cosine_similarity(model[token1].reshape(1, -1), model[token2].reshape(1, -1))[0, 0]
+                        if distance_tokens <= d_min:
+                            d_min = distance_tokens
+                        if distance_tokens >= d_max:
+                            d_max = distance_tokens
 
         if min(len(set1), len(set2)) > 0:
             centroid1 = np.sum([model[token1] for token1 in set1], axis=0) / len(set1)
             centroid2 = np.sum([model[token2] for token2 in set2], axis=0) / len(set2)
-            distance_centroid = np.linalg.norm(centroid1 - centroid2)
-        else:
-            distance_centroid = 100
+            distance_centroid = cosine_similarity(centroid1.reshape(1, -1), centroid2.reshape(1, -1))[0, 0]
 
         max_distance_tokens.append(d_max)
+        min_distances.append(d_min_classic)
         min_distance_tokens_duplic_removed.append(d_min)
         centroid_distances.append(distance_centroid)
 
-    word2vec_features = np.array([centroid_distances,
-                                  min_distance_tokens_duplic_removed,
-                                  max_distance_tokens]).T
+    word2vec_features = np.array(
+        [centroid_distances, min_distances, min_distance_tokens_duplic_removed, max_distance_tokens]).T
 
     return word2vec_features
 
@@ -190,27 +214,29 @@ def tf_idf_cosin(data_set):
 
     return np.array([tf_idf_cosin_sim]).T
 
-def n_grams_features(data_set,stpwds):
+
+def n_grams(data_set,stpwds):
+    # Select basic features
     stemmer = PorterStemmer()
-    dif_len = []
+    lens1 = []
+    lens2 = []
     common_unigrams_lens = []
     common_unigrams_ratios = []
     common_bigrams_lens = []
     common_bigrams_ratios = []
     common_trigrams_lens = []
+    dif_len = []
     common_trigrams_ratios = []
-    sentences = []
-    for i in range(data_set.shape[0]):
-
+    for i in range(nb_ex):
+        if i % 10000 == 0:
+            print(i)
         source_sentence = data_set[i, 0].lower().split(" ")
         source_sentence = [token for token in source_sentence if token not in stpwds]
         unigrams_que1 = [stemmer.stem(token) for token in source_sentence]
-        sentences.append(unigrams_que1)
 
         target_sentence = data_set[i, 1].lower().split(" ")
         target_sentence = [token for token in target_sentence if token not in stpwds]
         unigrams_que2 = [stemmer.stem(token) for token in target_sentence]
-        sentences.append(unigrams_que2)
 
         # get unigram features #
         common_unigrams_len = len(set(unigrams_que1).intersection(set(unigrams_que2)))
@@ -234,16 +260,17 @@ def n_grams_features(data_set,stpwds):
         common_trigrams_ratios.append(
             float(common_trigrams_len) / max(len(set(trigrams_que1).union(set(trigrams_que2))), 1))
 
-        dif_len.append(abs(len(source_sentence) - len(target_sentence)))
+        lens1.append(len(source_sentence))
+        lens2.append(len(target_sentence))
+        dif_len.append(abs(len(source_sentence) - len(source_sentence)))
 
-    # examples as rows, features as columns
     features = np.array([common_unigrams_lens,
                          common_unigrams_ratios,
                          common_bigrams_lens,
                          common_bigrams_ratios,
                          common_trigrams_lens,
                          common_trigrams_ratios,
+                         lens1,
+                         lens2,
                          dif_len]).T
-
-
     return features
