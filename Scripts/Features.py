@@ -43,6 +43,8 @@ def word2vec_features(model, sentences):
     centroid_distances = []
 
     for i in range(int(len(sentences) / 2)):
+        if i%10000 == 0:
+            print(i)
         d_min_classic = 0
         d_min = 0
         d_max = 0
