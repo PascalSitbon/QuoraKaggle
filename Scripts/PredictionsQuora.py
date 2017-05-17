@@ -109,8 +109,8 @@ print('Training Word2Vec')
 sentences = preprocess(sentences_train[:size_train,:],stpwds)
 model = gensim.models.Word2Vec(sentences, min_count=1,size=248,workers=5)
 model.train(sentences,total_examples=model.corpus_count,epochs=model.iter)
-# for i in range(10):
-#     model.train(sentences, total_examples=model.corpus_count, epochs=model.iter)
+for i in range(10):
+    model.train(sentences, total_examples=model.corpus_count, epochs=model.iter)
 print('calculating word2vec features')
 word2vec_features_ = word2vec_features(model,sentences)
 
