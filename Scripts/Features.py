@@ -43,12 +43,10 @@ def word2vec_features(model, sentences):
     centroid_distances = []
 
     for i in range(int(len(sentences) / 2)):
-        if i % 1000 == 0:
-            print(i)
-        d_min_classic = 1
-        d_min = 1
-        d_max = -1
-        distance_centroid = -1
+        d_min_classic = 0
+        d_min = 0
+        d_max = 0
+        distance_centroid = 0
 
         set1 = set(sentences[2 * i])
         set2 = set(sentences[2 * i + 1])
@@ -70,18 +68,19 @@ def word2vec_features(model, sentences):
                 d_max = 1
             else:
                 if set1.issubset(set2) or set2.issubset(set1):
-                    d_min = -1
-                    d_max = -1
+                    d_min = 0
+                    d_max = 0
                 else:
                     for token1 in set1 & sym_dif:
                         for token2 in set2 & sym_dif:
                             distance_tokens = \
                             cosine_similarity(model[token1].reshape(1, -1), model[token2].reshape(1, -1))[0, 0]
-                        if distance_tokens <= d_min:
-                            d_min = distance_tokens
-                        if distance_tokens >= d_max:
-                            d_max = distance_tokens
+                            if distance_tokens <= d_min:
+                                d_min = distance_tokens
+                            if distance_tokens >= d_max:
+                                d_max = distance_tokens
 
+        #this can be improved by taking tf_idf weights over each tokens.
         if min(len(set1), len(set2)) > 0:
             centroid1 = np.sum([model[token1] for token1 in set1], axis=0) / len(set1)
             centroid2 = np.sum([model[token2] for token2 in set2], axis=0) / len(set2)
@@ -227,9 +226,7 @@ def n_grams(data_set,stpwds):
     common_trigrams_lens = []
     dif_len = []
     common_trigrams_ratios = []
-    for i in range(nb_ex):
-        if i % 10000 == 0:
-            print(i)
+    for i in range(int(data_set.shape[0])):
         source_sentence = data_set[i, 0].lower().split(" ")
         source_sentence = [token for token in source_sentence if token not in stpwds]
         unigrams_que1 = [stemmer.stem(token) for token in source_sentence]

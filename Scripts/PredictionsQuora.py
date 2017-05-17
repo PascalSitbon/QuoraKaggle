@@ -22,7 +22,6 @@ model_name = None
 nltk.download('stopwords')
 stpwds = set(nltk.corpus.stopwords.words("english"))
 Training_Set = pd.read_csv('train.csv').dropna()
-pdb.set_trace()
 clean_data = Training_Set[['question1','question2','is_duplicate']].values
 sentences_train = clean_data[:,:2]
 labels = clean_data[:,2]
@@ -75,7 +74,7 @@ def word_shares(row):
     R32 = len(q2stops) / len(q2words)  # stops in q2
     return '{}:{}:{}:{}:{}'.format(R1, R2, len(shared_words), R31, R32)
 
-df = Training_Set.iloc[:size_train]
+df = df_train
 df['word_shares'] = df.apply(word_shares, axis=1, raw=True)
 
 x = pd.DataFrame()
@@ -106,12 +105,13 @@ x['duplicated'] = df.duplicated(['question1','question2']).astype(int)
 word_shares_features = x.values
 
 #word2vec
-print('calculating word2vec features')
+print('Training Word2Vec')
 sentences = preprocess(sentences_train[:size_train,:],stpwds)
-model = gensim.models.Word2Vec(sentences, min_count=1,size=50,workers=4)
-for i in range(50):
-    print('epcoch',i)
-    model.train(sentences,total_examples=model.corpus_count,epochs=model.iter)
+model = gensim.models.Word2Vec(sentences, min_count=1,size=248,workers=5)
+model.train(sentences,total_examples=model.corpus_count,epochs=model.iter)
+# for i in range(10):
+#     model.train(sentences, total_examples=model.corpus_count, epochs=model.iter)
+print('calculating word2vec features')
 word2vec_features_ = word2vec_features(model,sentences)
 
 
@@ -137,10 +137,10 @@ X = np.column_stack([train_comb_features_train,n_grams_features,word2vec_feature
 X = preprocessing.scale(X)
 y = labels[:size_train].astype(float)
 X_train, X_test, y_train, y_test = train_test_split(X, y,
-                                                    test_size=0.3,
+                                                    test_size=0.25,
                                                     random_state=42)
 
-clf = RandomForestClassifier(n_estimators=200,max_depth = 2,max_features=10)
+clf = RandomForestClassifier(n_estimators=100,max_depth = 9,max_features=9)
 clf.fit(X_train,y_train)
 print('Training Score:',sklearn.metrics.log_loss(y_train,clf.predict_proba(X_train)[:,1]))
 print('Testing Score:',sklearn.metrics.log_loss(y_test,clf.predict_proba(X_test)[:,1]))
