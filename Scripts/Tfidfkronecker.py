@@ -1,77 +1,117 @@
 import sklearn
-from sklearn.cross_validation import train_test_split
-from sklearn.metrics import f1_score
 import numpy as np
-import nltk
-from nltk import *
+import pandas as pd
+import time
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
-import pandas as pd
-import scipy
-from sklearn.grid_search import GridSearchCV
-
+import sklearn.model_selection as skm
 
 np.random.seed(42)
 
 #Loading Data
-nltk.download('stopwords')
-stpwds = set(nltk.corpus.stopwords.words("english"))
-print('\n ==========')
-print('Loeading Data')
-Training_Set = pd.read_csv('train.csv').dropna()
-Testing_Set = pd.read_csv('test.csv')
-sentences_train = (Training_Set[['question1','question2']].values).astype(str)
-sentences_test = (Testing_Set[['question1','question2']].values).astype(str)
-labels = Training_Set['is_duplicate'].values.astype(float)
+print('---------------------------------------------')
+print('loading training data')
+trainDF = pd.read_csv('train.csv')
+trainDF = trainDF.dropna(how="any").reset_index(drop=True)
+
+print('---------------------------------------------')
+print('Training Tf Idf')
+tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=50,  max_features=300000,
+                                   stop_words='english', analyzer='word',ngram_range=(1,7))
+tfidf_vectorizer.fit(pd.concat((trainDF.ix[:,'question1'],trainDF.ix[:,'question2'])).unique())
+trainQuestion1_BOW_rep = tfidf_vectorizer.transform(trainDF.ix[:,'question1'])
+trainQuestion2_BOW_rep = tfidf_vectorizer.transform(trainDF.ix[:,'question2'])
+labels = np.array(trainDF.ix[:,'is_duplicate'])
+
+crossValidationStartTime = time.time()
+
+numCVSplits = 8
+numSplitsToBreakAfter = 2
+
+X = (trainQuestion1_BOW_rep.multiply(trainQuestion2_BOW_rep).astype(float))
+y = labels
+
+logisticRegressor = LogisticRegression(C=0.1,penalty='l1')
+
+logRegAccuracy = []
+logRegLogLoss = []
+logRegAUC = []
+
+print('---------------------------------------------')
+stratifiedCV = skm.StratifiedKFold(n_splits=numCVSplits, random_state=2)
+for k, (trainInds, validInds) in enumerate(stratifiedCV.split(X, y)):
+    foldTrainingStartTime = time.time()
+
+    X_train_cv = X[trainInds, :]
+    X_valid_cv = X[validInds, :]
+
+    y_train_cv = y[trainInds]
+    y_valid_cv = y[validInds]
+
+    logisticRegressor.fit(X_train_cv, y_train_cv)
+
+    y_train_hat = logisticRegressor.predict_proba(X_train_cv)[:, 1]
+    y_valid_hat = logisticRegressor.predict_proba(X_valid_cv)[:, 1]
+
+    logRegAccuracy.append(sklearn.metrics.accuracy_score(y_valid_cv, y_valid_hat > 0.5))
+    logRegLogLoss.append(sklearn.metrics.log_loss(y_valid_cv, y_valid_hat))
+    logRegAUC.append(sklearn.metrics.roc_auc_score(y_valid_cv, y_valid_hat))
+
+    foldTrainingDurationInMinutes = (time.time() - foldTrainingStartTime) / 60.0
+    print('fold %d took %.2f minutes: accuracy = %.3f, log loss = %.4f, AUC = %.3f' % (k + 1,
+                                                                                       foldTrainingDurationInMinutes,
+                                                                                       logRegAccuracy[-1],
+                                                                                       logRegLogLoss[-1],
+                                                                                       logRegAUC[-1]))
+
+    if (k + 1) >= numSplitsToBreakAfter:
+        break
+
+crossValidationDurationInMinutes = (time.time() - crossValidationStartTime) / 60.0
+
+print('---------------------------------------------')
+print('cross validation took %.2f minutes' % (crossValidationDurationInMinutes))
+print('mean CV: accuracy = %.3f, log loss = %.4f, AUC = %.3f' % (np.array(logRegAccuracy).mean(),
+                                                                 np.array(logRegLogLoss).mean(),
+                                                                 np.array(logRegAUC).mean()))
+print('---------------------------------------------')
 
 
-def tf_idf_kronecker(data_set,max_features):
-    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,  max_features=max_features,
-                                   stop_words='english',analyzer = 'word')
-    tfidf_sentences= tfidf_vectorizer.fit_transform(data_set.flatten())
-    res = scipy.sparse.lil_matrix((data_set.shape[0], max_features))
-    for i in range(data_set.shape[0]):
-        res[i,:] = (tfidf_sentences[2*i,:].multiply(tfidf_sentences[2*i+1,:]))
-    return scipy.sparse.csr_matrix(res)
+print('---------------------------------------------')
+print('Training on whole data')
+trainingStartTime = time.time()
+
+logisticRegressor = sklearn.linear_model.LogisticRegression(C=0.1, solver='sag',
+                                                    class_weight={1: 0.46, 0: 1.32})
+logisticRegressor.fit(X, y)
+
+trainingDurationInMinutes = (time.time()-trainingStartTime)/60.0
+print('full training took %.2f minutes' % (trainingDurationInMinutes))
 
 
+testPredictionStartTime = time.time()
 
-print('\n ==========')
-print('tfidf features')
-sentences = np.concatenate([sentences_train,sentences_test])
-TFIDF = tf_idf_kronecker(sentences,max_features= 10000)
-X = TFIDF[:sentences_train.shape[0],:]
-print('\n ==========')
-print('Training on', X.shape[0],'examples')
-X_submission = TFIDF[sentences_train.shape[0]:,:]
-LR = LogisticRegression()
-X_train, X_test, y_train, y_test = train_test_split(X, labels,
-                                                    test_size=0.2,
-                                                    random_state=42)
-print('\n ==========')
-print('Grid Search for the parameters of the logistic regression')
-param_grid = {"C": [ 0.1, 1, 10,100],
-              "penalty": ['l1', 'l2'],
-              "class_weight": [{1: 0.46, 0: 1.32}]
-              }
+testDF = pd.read_csv('test.csv')
+testDF.ix[testDF['question1'].isnull(),['question1','question2']] = 'random empty question'
+testDF.ix[testDF['question2'].isnull(),['question1','question2']] = 'random empty question'
 
-print('\n ==========')
-print('learning')
-# run grid search
-grid_search = GridSearchCV(LR, param_grid=param_grid, scoring='log_loss')
-grid_search.fit(X_train, y_train)
-clf = grid_search.best_estimator_
-clf.fit(X_train, y_train)
+testQuestion1_BOW_rep = tfidf_vectorizer.transform(testDF.ix[:,'question1'])
+testQuestion2_BOW_rep = tfidf_vectorizer.transform(testDF.ix[:,'question2'])
 
-print('Training Score:', sklearn.metrics.log_loss(y_train, clf.predict_proba(X_train)[:, 1]))
-print('Testing Score:', sklearn.metrics.log_loss(y_test, clf.predict_proba(X_test)[:, 1]))
-clf.fit(X, labels)
+X_test = (testQuestion1_BOW_rep.multiply(testQuestion2_BOW_rep)).astype(float)
 
-print('\n ==============')
-print('Predicting Submission Set')
 
-print('\n ==============')
-y_submission = clf.predict_proba(X_submission)[:, 1]
-Testing_Set['is_duplicate'] = y_submission
-submission = Testing_Set[['test_id', 'is_duplicate']]
-submission = submission.to_csv('/Users/pascalsitbon/work/Kaggle/pred.csv', index=False)
+# quick fix to avoid memory errors
+seperators= [750000,1500000]
+testPredictions1 = logisticRegressor.predict_proba(X_test[:seperators[0],:])[:,1]
+testPredictions2 = logisticRegressor.predict_proba(X_test[seperators[0]:seperators[1],:])[:,1]
+testPredictions3 = logisticRegressor.predict_proba(X_test[seperators[1]:,:])[:,1]
+testPredictions = np.hstack((testPredictions1,testPredictions2,testPredictions3))
+
+
+submissionName = 'TfidfKronecker'
+
+submission = pd.DataFrame()
+submission['test_id'] = testDF['test_id']
+submission['is_duplicate'] = testPredictions
+submission.to_csv(submissionName + '.csv', index=False)
