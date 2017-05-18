@@ -6,7 +6,7 @@ from nltk.stem import *
 from nltk import word_tokenize, ngrams
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
-
+from scipy.sparse.csr import csr_matrix
 
 #Ideas on features based on word2vec:
 
@@ -21,6 +21,7 @@ def preprocess(sentences_train,stpwds):
     sentences = []
     stemmer = PorterStemmer()
     for i in range(sentences_train.shape[0]):
+
         source_sentence = sentences_train[i,0].lower().split(" ")
         source_sentence = [token for token in source_sentence if token not in stpwds]
         unigrams_que1 = [stemmer.stem(token) for token in source_sentence]
@@ -206,7 +207,7 @@ def freq_hash(train_orig,test_orig):
 
 def tf_idf_cosin(data_set):
     tf_idf_cosin_sim = []
-    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,  # max_features=n_features,
+    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,  max_features=30,
                                    stop_words='english')
     tfidf_sentences= tfidf_vectorizer.fit_transform(data_set.flatten())
 
@@ -214,6 +215,17 @@ def tf_idf_cosin(data_set):
         tf_idf_cosin_sim.append(cosine_similarity(tfidf_sentences[2*i,:], tfidf_sentences[2*i+1,:])[0,0])
 
     return np.array([tf_idf_cosin_sim]).T
+
+
+def tf_idf_f1(data_set,max_features = 300):
+    res = csr_matrix((int(data_set.shape[0]), max_features))
+    tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,  max_features=max_features,
+                                   stop_words='english')
+    tfidf_sentences= tfidf_vectorizer.fit_transform(data_set)
+
+    for i in range(data_set.shape[0]):
+        res[i,:] = tfidf_sentences[2*i,:].multiply(tfidf_sentences[2*i+1,:])
+    return res
 
 
 def n_grams(data_set,stpwds):
@@ -229,6 +241,8 @@ def n_grams(data_set,stpwds):
     dif_len = []
     common_trigrams_ratios = []
     for i in range(int(data_set.shape[0])):
+        if i%10000 == 0:
+            print(i)
         source_sentence = data_set[i, 0].lower().split(" ")
         source_sentence = [token for token in source_sentence if token not in stpwds]
         unigrams_que1 = [stemmer.stem(token) for token in source_sentence]
