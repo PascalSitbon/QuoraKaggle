@@ -9,9 +9,7 @@ import pandas as pd
 from nltk.stem import *
 import logging
 from sklearn.grid_search import GridSearchCV
-import sys
-import gensim
-from .Features import n_grams,freq_hash, preprocess, word2vec_features
+from .Features import n_grams,freq_hash
 import copy
 from collections import Counter
 logging.basicConfig(format='%(asctime)s : %(levelname)s : %(message)s', level=logging.INFO)
@@ -29,10 +27,7 @@ labels = clean_data[:,2]
 
 
 #Size of Training Set used
-if len(sys.argv)==1:
-    size_train = sentences_train.shape[0]
-else:
-    size_train = int(sys.argv[1])
+size_train = sentences_train.shape[0]
 
 
 
@@ -104,22 +99,7 @@ x['duplicated'] = df.duplicated(['question1','question2']).astype(int)
 
 word_shares_features = x.values
 
-#word2vec
-# print('Training Word2Vec')
-sentences = preprocess(sentences_train[:size_train,:],stpwds)
-model = gensim.models.Word2Vec(sentences, min_count=1,size=248,workers=5)
-model.train(sentences,total_examples=model.corpus_count,epochs=model.iter)
-for i in range(10):
-    print('epoch',i)
-    model.train(sentences, total_examples=model.corpus_count, epochs=model.iter)
-print('calculating word2vec features')
-word2vec_features_ = word2vec_features(model,sentences)
 
-
-
-# #Doc2Vec Features
-# print('calculating doc2vec features')
-# doc_2_vec_features_train = doc2vecs_features(sentences_train[:size_train,:],stpwds,model_name=model_name)
 
 #frequency and hash Features
 print('calucalting hash and freq features')
@@ -138,7 +118,7 @@ n_grams_features = n_grams(sentences_train[:size_train,:],stpwds)
 
 
 #Training
-X = np.column_stack([train_comb_features_train,n_grams_features,word2vec_features_,word_shares_features])
+X = np.column_stack([train_comb_features_train,n_grams_features,word_shares_features])
 X = preprocessing.scale(X)
 y = labels[:size_train].astype(float)
 X_train, X_test, y_train, y_test = train_test_split(X, y,
@@ -148,7 +128,7 @@ X_train, X_test, y_train, y_test = train_test_split(X, y,
 param_grid = {"max_depth": [3, 5, 10, 12],
               "max_features": [3, 5, 10, 12],
               "n_estimators": [100],
-              "class_weight": [None,{1: 0.46, 0: 1.32}]
+              "class_weight": [{1: 0.46, 0: 1.32}]
               }
 
 # run grid search
@@ -171,7 +151,6 @@ test_comb_features = test_comb[['q1_hash','q2_hash','q1_freq','q2_freq']].values
 
 
 print('\n Computing Share Words and Word Match')
-
 df_test = Testing_Set
 test_qs = pd.Series(df_test['question1'].tolist() + df_test['question2'].tolist()).astype(str)
 words = (" ".join(test_qs)).lower().split()
@@ -210,24 +189,15 @@ x['duplicated'] = df.duplicated(['question1','question2']).astype(int)
 word_shares_features_test = x.values
 
 
-print('\n Computing Word2Vec Features')
 
-sentences_test = Testing_Set[['question1','question2']].values
-sentences_submission = preprocess(sentences_test,stpwds)
-
-model = gensim.models.Word2Vec(sentences_submission, min_count=1,size=248,workers=5)
-model.train(sentences_submission,total_examples=model.corpus_count,epochs=model.iter)
 
 
 print('\n Computing n_grams Features on Submission Set')
+sentences_test = Testing_Set[['question1','question2']].values
 n_grams_test = n_grams(sentences_test,stpwds)
 
-for i in range(10):
-    print('epoch',i)
-    model.train(sentences_submission, total_examples=model.corpus_count, epochs=model.iter)
 
-word2vec_features_test = word2vec_features(model,sentences_submission)
-X_submission = np.column_stack([test_comb_features,n_grams_test,word2vec_features_test,word_shares_features_test])
+X_submission = np.column_stack([test_comb_features,n_grams_test,word_shares_features_test])
 X_submission = preprocessing.scale(X_submission)
 y_submission = clf.predict_proba(X_submission)[:,1]
 Testing_Set['is_duplicate'] = y_submission
