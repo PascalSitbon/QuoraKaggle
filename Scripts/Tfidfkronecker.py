@@ -34,7 +34,6 @@ else:
 
 
 def tf_idf_kronecker(data_set,max_features):
-
     tfidf_vectorizer = TfidfVectorizer(max_df=0.95, min_df=2,  max_features=max_features,
                                    stop_words='english',analyzer = 'word')
     tfidf_sentences= tfidf_vectorizer.fit_transform(data_set.flatten())
@@ -78,7 +77,7 @@ print('\n ==============')
 Testing_Set = pd.read_csv('test.csv')
 print('\n ==============')
 print('calucalting hash and freq features')
-sentences_test = preprocess(Testing_Set[['question1','question2']].values)
+sentences_test = Testing_Set[['question1','question2']].values
 X_submission = tf_idf_kronecker(sentences_test)
 y_submission = clf.predict_proba(X_submission)[:, 1]
 Testing_Set['is_duplicate'] = y_submission
