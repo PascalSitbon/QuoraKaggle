@@ -43,21 +43,21 @@ def create_base_network(input_dim):
     '''
     input = Input(shape=(input_dim,))
     dense1 = Dense(128)(input)
-    bn1 = BatchNormalization(mode=2)(dense1)
+    bn1 = BatchNormalization()(dense1)
     relu1 = Activation('relu')(bn1)
 
     dense2 = Dense(128)(relu1)
-    bn2 = BatchNormalization(mode=2)(dense2)
+    bn2 = BatchNormalization()(dense2)
     res2 = merge([relu1, bn2], mode='sum')
     relu2 = Activation('relu')(res2)
 
     dense3 = Dense(128)(relu2)
-    bn3 = BatchNormalization(mode=2)(dense3)
+    bn3 = BatchNormalization()(dense3)
     res3 = Merge(mode='sum')([relu2, bn3])
     relu3 = Activation('relu')(res3)
 
     feats = merge([relu3, relu2, relu1], mode='concat')
-    bn4 = BatchNormalization(mode=2)(feats)
+    bn4 = BatchNormalization()(feats)
 
     model = Model(input=input, output=bn4)
 
@@ -65,10 +65,7 @@ def create_base_network(input_dim):
 
 
 def compute_accuracy(predictions, labels):
-    '''
-    Compute classification accuracy with a fixed threshold on distances.
-    '''
-    return labels[predictions.ravel() < 0.5].mean()
+    return np.mean(np.equal(predictions.ravel() < 0.5, labels))
 
 
 def create_network(input_dim):

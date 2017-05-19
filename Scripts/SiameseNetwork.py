@@ -1,5 +1,6 @@
 import spacy
 import pandas as pd
+from sklearn.metrics import log_loss
 from siamesefeatures import *
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -37,8 +38,9 @@ for qu in tqdm(list(df['question1'])):
 df['q1_feats'] = list(vecs1)
 
 vecs2 = []
+import pdb
 for qu in tqdm(list(df['question2'])):
-    doc = nlp(qu)
+    doc = nlp(str(qu))
     mean_vec = np.zeros([len(doc), 300])
     for word in doc:
         # word2vec
@@ -52,9 +54,8 @@ for qu in tqdm(list(df['question2'])):
         # compute final vec
         mean_vec += vec * idf
     mean_vec = mean_vec.mean(axis=0)
-    vecs1.append(mean_vec)
+    vecs2.append(mean_vec)
 df['q2_feats'] = list(vecs2)
-
 # shuffle df
 df = df.reindex(np.random.permutation(df.index))
 
@@ -74,6 +75,8 @@ Y_test = np.zeros([num_test])
 b = [a[None, :] for a in list(df['q1_feats'].values)]
 q1_feats = np.concatenate(b, axis=0)
 
+
+
 b = [a[None, :] for a in list(df['q2_feats'].values)]
 q2_feats = np.concatenate(b, axis=0)
 
@@ -91,8 +94,6 @@ del b
 del q1_feats
 del q2_feats
 
-
-
 net = create_network(300)
 
 # train
@@ -105,9 +106,15 @@ for epoch in range(10):
             validation_data=([X_test[:, 0, :], X_test[:, 1, :]], Y_test),
             batch_size=128, nb_epoch=1, shuffle=True, )
 
-    # compute final accuracy on training and test sets
-    pred = net.predict([X_test[:, 0, :], X_test[:, 1, :]], batch_size=128)
-    te_acc = compute_accuracy(pred, Y_test)
+    pred_test = net.predict([X_test[:, 0, :], X_test[:, 1, :]], batch_size=128)
+    pred_train = net.predict([X_train[:, 0, :], X_train[:, 1, :]], batch_size=128)
 
-    #print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
+    te_acc = compute_accuracy(pred_test, Y_test)
+    tr_acc = compute_accuracy(pred_train,Y_train)
+
+
+    print('Log Loss on train set:', log_loss(Y_train, pred_train>0.5))
+    print('Log Loss on test set:',log_loss(Y_test,pred_test>0.5))
+
+    print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
     print('* Accuracy on test set: %0.2f%%' % (100 * te_acc))
