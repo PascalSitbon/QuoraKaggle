@@ -98,8 +98,8 @@ net = create_network(300)
 
 # train
 # optimizer = SGD(lr=1, momentum=0.8, nesterov=True, decay=0.004)
-optimizer = Adam(lr=0.001)
-net.compile(loss=contrastive_loss, optimizer=optimizer)
+optimizer = Adam(lr=0.1)
+net.compile(loss='binary_crossentropy', optimizer=optimizer)
 
 for epoch in range(10):
     net.fit([X_train[:, 0, :], X_train[:, 1, :]], Y_train,
@@ -109,12 +109,5 @@ for epoch in range(10):
     pred_test = net.predict([X_test[:, 0, :], X_test[:, 1, :]], batch_size=128)
     pred_train = net.predict([X_train[:, 0, :], X_train[:, 1, :]], batch_size=128)
 
-    te_acc = compute_accuracy(pred_test, Y_test)
-    tr_acc = compute_accuracy(pred_train,Y_train)
-
-
-    print('Log Loss on train set:', log_loss(Y_train, pred_train>0.5))
-    print('Log Loss on test set:',log_loss(Y_test,pred_test>0.5))
-
-    print('* Accuracy on training set: %0.2f%%' % (100 * tr_acc))
-    print('* Accuracy on test set: %0.2f%%' % (100 * te_acc))
+    print('Log Loss on train set:', log_loss(Y_train, pred_train))
+    print('Log Loss on test set:',log_loss(Y_test, pred_test))

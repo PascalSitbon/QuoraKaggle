@@ -81,7 +81,10 @@ def create_network(input_dim):
     processed_a = base_network(input_a)
     processed_b = base_network(input_b)
 
-    distance = Lambda(euclidean_distance, output_shape=eucl_dist_output_shape)([processed_a, processed_b])
+    L1_distance = lambda x: K.abs(x[0] - x[1])
 
-    model = Model(input=[input_a, input_b], output=distance)
+    both = merge([processed_a, processed_b], mode=L1_distance, output_shape=lambda x: x[0])
+    prediction = Dense(1, activation='sigmoid')(both)
+
+    model = Model(input=[input_a, input_b], output=prediction)
     return model
