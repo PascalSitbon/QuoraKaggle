@@ -1,6 +1,5 @@
 import spacy
 import pandas as pd
-from sklearn.metrics import log_loss
 from siamesefeatures import *
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
