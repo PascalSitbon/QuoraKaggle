@@ -4,28 +4,31 @@ from siamesefeatures import *
 import numpy as np
 from sklearn.feature_extraction.text import TfidfVectorizer
 from tqdm import tqdm
-import pdb
-from keras.optimizers import RMSprop, SGD, Adam
+from keras.optimizers import SGD,Adam
+
+print('=======================','\n','Loading Data')
 df = pd.read_csv("train.csv")
 df_test= pd.read_csv('test.csv')
 nlp = spacy.load('en')
 
 
 np.random.seed(42)
-# merge texts
-print('TFIDF Fit-Transform')
+
 questions = list(df['question1'].values.astype(str)) + list(df['question2'].values.astype(str))
 questions_ = list(df_test['question1'].values.astype(str)) + list(df_test['question2'].values.astype(str))
-tfidf = TfidfVectorizer(lowercase=False, )
+tfidf = TfidfVectorizer(lowercase=False, stop_words='english', min_df = 50, max_features= 300000)
 tfidf.fit_transform(questions+questions_)
 word2tfidf = dict(zip(tfidf.get_feature_names(), tfidf.idf_))
 
+not_found = 0
+nb_words = 0
 vecs1 = []
 for qu in tqdm(list(df['question1'])):
     doc = nlp(qu)
     mean_vec = np.zeros([len(doc), 300])
     for word in doc:
         # word2vec
+        nb_words+=1
         vec = word.vector
         # fetch df score
         try:
@@ -33,6 +36,7 @@ for qu in tqdm(list(df['question1'])):
         except:
             #print word
             idf = 0
+            not_found+=1
         # compute final vec
         mean_vec += vec * idf
     mean_vec = mean_vec.mean(axis=0)
@@ -46,6 +50,7 @@ for qu in tqdm(list(df['question2'])):
     mean_vec = np.zeros([len(doc), 300])
     for word in doc:
         # word2vec
+        nb_words+=1
         vec = word.vector
         # fetch df score
         try:
@@ -53,16 +58,22 @@ for qu in tqdm(list(df['question2'])):
         except:
             #print word
             idf = 0
+            not_found+=1
         # compute final vec
         mean_vec += vec * idf
     mean_vec = mean_vec.mean(axis=0)
     vecs2.append(mean_vec)
 df['q2_feats'] = list(vecs2)
+
+#Weights to 0
+print('percentage of weights put 0',not_found/nb_words)
 # shuffle df
+
+
 df = df.reindex(np.random.permutation(df.index))
 
 # set number of train and test instances
-num_train = int(df.shape[0] * 0.90)
+num_train = int(df.shape[0] * 0.95)
 num_test = df.shape[0] - num_train
 print("Number of training pairs: %i" % (num_train))
 print("Number of testing pairs: %i" % (num_test))
@@ -99,11 +110,11 @@ del q2_feats
 net = create_network(300)
 
 # train
-optimizer = Adam(lr=1,decay= 0.008)
+optimizer = Adam(lr=0.25,decay=0.01)
 net.compile(loss='binary_crossentropy', optimizer=optimizer)
 net.fit([X_train[:, 0, :], X_train[:, 1, :]], Y_train,
         validation_data=([X_test[:, 0, :], X_test[:, 1, :]], Y_test),
-        batch_size=128, epochs=30, shuffle=True,class_weight={1: 0.46, 0: 1.32})
+        batch_size=128, epochs=15, shuffle=True, class_weight={1: 0.46, 0: 1.32})
 
 print('Preparing Submission Data')
 

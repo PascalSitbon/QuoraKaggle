@@ -2,45 +2,13 @@ from __future__ import absolute_import
 from __future__ import print_function
 import numpy as np
 
-from keras.models import Sequential, Model
-from keras.layers import Dense, Dropout, Lambda, merge, BatchNormalization, Activation, Input, Merge
+from keras.models import Model
+from keras.layers import Dense, Dropout, merge, BatchNormalization, Activation, Input, Merge
 from keras import backend as K
 
 
-def euclidean_distance(vects):
-    x, y = vects
-    return K.sqrt(K.sum(K.square(x - y), axis=1, keepdims=True))
-
-
-def eucl_dist_output_shape(shapes):
-    shape1, shape2 = shapes
-    return (shape1[0], 1)
-
-
-def cosine_distance(vests):
-    x, y = vests
-    x = K.l2_normalize(x, axis=-1)
-    y = K.l2_normalize(y, axis=-1)
-    return -K.mean(x * y, axis=-1, keepdims=True)
-
-
-def cos_dist_output_shape(shapes):
-    shape1, shape2 = shapes
-    return (shape1[0], 1)
-
-
-def contrastive_loss(y_true, y_pred):
-    '''Contrastive loss from Hadsell-et-al.'06
-    http://yann.lecun.com/exdb/publis/pdf/hadsell-chopra-lecun-06.pdf
-    '''
-    margin = 1
-    return K.mean(y_true * K.square(y_pred) + (1 - y_true) * K.square(K.maximum(margin - y_pred, 0)))
-
-
 def create_base_network(input_dim):
-    '''
-    Base network for feature extraction.
-    '''
+
     input = Input(shape=(input_dim,))
     dense1 = Dense(128)(input)
     bn1 = BatchNormalization()(dense1)
@@ -64,20 +32,14 @@ def create_base_network(input_dim):
     return model
 
 
-def compute_accuracy(predictions, labels):
-    return np.mean(np.equal(predictions.ravel() < 0.5, labels))
-
 
 def create_network(input_dim):
-    # network definition
+
     base_network = create_base_network(input_dim)
 
     input_a = Input(shape=(input_dim,))
     input_b = Input(shape=(input_dim,))
 
-    # because we re-use the same instance `base_network`,
-    # the weights of the network
-    # will be shared across the two branches
     processed_a = base_network(input_a)
     processed_b = base_network(input_b)
 
@@ -87,4 +49,5 @@ def create_network(input_dim):
     prediction = Dense(1, activation='sigmoid')(both)
 
     model = Model(input=[input_a, input_b], output=prediction)
+
     return model
